@@ -1,0 +1,8 @@
+# 获取资源
+1. 根据 tag 或 digest 将资源下载到本地，并校验内容摘要。
+2. Bundle 默认只下载自身文件，`--recursive` 递归下载引用资源。
+
+##########################################################################
+fw resource pull <resource-ref> --output-dir ./resources/aime25
+fw resource pull <bundle-ref> --output-dir ./resources/evaluation --recursive
+##########################################################################

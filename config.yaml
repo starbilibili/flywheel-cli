@@ -1,0 +1,17 @@
+schema_version: fw-eval/v2
+task: eval
+output_dir: ./runs
+
+resources:
+  dataset: sha256:c991b0bbef2951839ddeba2a9d7e7f0d9018342b08afe2eb4ef861df9838fdcc
+  model: sha256:0ae41cd9eeb156659025803bdb9fc2ca18790a1f9a77324505476262c437a71d
+  config: sha256:42f475b0b9e7aefb2048e31ec23083e01a970b48e154d999f3d7ab650e6de8cd
+  script: sha256:0c9087e3d24a85e6d640dd368b1eebe4ec1c33e06a70944fd4dd9a43f0b4357f
+
+selection:
+  strategy: random
+  count: 20
+  seed: 20260828
+  replacement: false
+
+

@@ -1,0 +1,9 @@
+schema_version: fw-resource/v1
+type: dataset
+name: aime25
+version: opencompass-a6ad95f6
+adapter: jsonl-question-answer/v1
+spec:
+  files:
+    - data/aime2025-I.jsonl
+    - data/aime2025-II.jsonl

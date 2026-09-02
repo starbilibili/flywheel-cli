@@ -1,0 +1,15 @@
+{
+  "project_id": "flywheel",
+  "routes": [
+    {
+      "artifact_kind": "execution_skill",
+      "artifact_id": "agent-cli-design",
+      "match": {
+        "task_types": [
+          "cli-design"
+        ]
+      }
+    }
+  ],
+  "schema_version": 1
+}

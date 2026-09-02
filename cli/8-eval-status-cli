@@ -1,0 +1,10 @@
+# 查看评测进度
+1. 显示任务阶段、完成数量、失败数量和最近错误。
+2. 状态统一为 queued、running、succeeded、failed、cancelled。
+3. `--watch` 持续刷新，任务结束后退出。后台提交的返回结果会给出包含实际输出目录的完整命令。
+
+##########################################################################
+fw eval status <run-id> --output-dir ./runs
+fw eval status <run-id> --output-dir ./runs --watch
+fw eval status <run-id> --output-dir ./runs -o json
+##########################################################################

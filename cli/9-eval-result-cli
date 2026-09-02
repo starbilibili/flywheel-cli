@@ -1,0 +1,9 @@
+# 获取评测结果
+1. 输出标准 QA Run Output：最终指标、样本明细目录、Token 用量和四个输入资源的不可变引用。
+2. 未完成任务只能输出 partial result。
+
+##########################################################################
+fw eval result <run-id>
+fw eval result <run-id> --output-dir ./results/<run-id>
+fw eval result <run-id> -o json
+##########################################################################

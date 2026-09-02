@@ -1,0 +1,41 @@
+# 发起评测任务
+1. 用户维护本地 config.yaml；提交前将其中的资源引用解析为不可变 Run Spec。
+2. 默认在本机后台执行并立即返回 run_id、输出目录和状态查询命令。
+3. 加 `--wait` 时在当前终端同步执行，显示进度条以及成功、失败、运行无效三类累计数量。
+4. 单次请求结果、日志和最终摘要只写入输出目录，不在终端逐条展开。
+
+##########################################################################
+fw eval submit --config config.yaml
+fw eval submit --config config.yaml --wait
+
+```yaml
+schema_version: fw-eval/v2
+task: eval
+output_dir: ./runs
+
+resources:
+    dataset: local:./assets/dataset-aime25
+    model: local:./assets/model-v4-pro
+    config: local:./assets/evaluation-config-aime25-avg4
+    script: local:./assets/evaluator-aime25-openai
+
+selection:
+    strategy: random
+    count: 20
+    seed: 20260828
+    replacement: false
+```
+##########################################################################
+task: eval
+
+benchmark: # dataset, eval_config, benchmark_logic, benchmark_image
+    base_snapshot: aime25@v1
+    overwrite:
+        dataset: aime25_data@v2  # use snapshot id to overwrite whole snapshot
+        eval_config:
+            temperature: 1.0  # use literal value to overwrite specific parameter value
+            repeat: 4 # how many repetition for each problem
+
+model:
+    base_snapshot: Qwen3.8-27B_v1
+##########################################################################

@@ -1,0 +1,7 @@
+schema_version: fw-resource/v1
+type: script
+name: aime25-openai-evaluator
+version: v2
+adapter: python-qa-script/v1
+spec:
+  protocol: fw-qa-script/v1

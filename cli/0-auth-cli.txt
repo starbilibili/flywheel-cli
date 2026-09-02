@@ -1,0 +1,19 @@
+# Flywheel 登录
+用户只登录 Flywheel。底层认证平台、共享会话与 token 注入均属于内部实现，不能出现在用户界面中。
+
+##########################################################################
+fw auth login
+fw auth status
+fw auth logout
+
+# 所有命令支持 -o json；最终结果写 stdout，登录进度写 stderr。
+
+# 内部登录与验证逻辑
+trisol login
+trisol whoami -o json
+WENYON_TOKEN=<shared-vouch-token> wenyon-cli registry list -o json
+
+# 内部登出顺序
+wenyon-cli auth logout
+trisol logout
+##########################################################################

@@ -1,0 +1,9 @@
+schema_version: fw-resource/v1
+type: model
+name: v4-pro
+version: api-binding-v1
+adapter: openai-compatible-api/v1
+spec:
+  endpoint_env: LLM_BASE_URL
+  model_env: LLM_PRO
+  credential_env: LLM_API_KEY

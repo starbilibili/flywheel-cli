@@ -1,0 +1,18 @@
+# 注册资源
+1. 每次只接收一个文件或目录，不做批量注册。
+2. CLI 不推断类型，由用户从 Dataset、Model、Config、Script 中选择。
+3. 用户输入资源名称后，CLI 生成小写 `res_<ulid>` 形式的 Resource ID。
+4. Storage Repo 采用 `users/<uid>/<resource-type>/<resource-name>-<resource-id>`；例如 `users/<uid>/dataset/aime25-res_<ulid>`。
+   文渊当前没有直接返回 Registry UID 的只读接口。首次注册时，CLI 创建空的裸名探针 Repo，通过 `registry list` 解析完整个人 namespace，立即删除探针，并按登录主体将 UID 缓存在 `~/.config/flywheel/registry-identities.json`；缓存不包含凭据。
+5. CLI 查询该任务下同类型的已有资源。用户可创建新 Resource，也可选择已有 Resource，并默认用最新 Snapshot 作为血缘父版本。
+6. 新 Resource 可输入描述，直接回车时生成“任务、资源类型、创建人、创建时间”组成的默认描述。描述写入 Manifest 顶层 `annotations`，属于 Resource；后续 Snapshot 自动继承，不重复询问。
+7. 资源选择列表显示 Resource ID、描述和创建时间，避免用户只靠随机 ID 判断。
+8. 文渊不可用时明确显示“无法查询远端资源历史”，不伪造版本，也不默认创建重复资源。
+9. 每次注册自动产生 Manifest Digest，作为不可变 Snapshot；用户可选 Tag 只用于识别和检索，不表达版本序号。
+10. 已有 Resource 的新 Snapshot 通过 `flywheel_parent` Registry Ref 记录父 Digest。
+11. 注册成功后输出真实 Repo 和 Snapshot Ref；Lance 索引由后续单写者接口异步写入，不在当前命令行暴露内部状态。
+
+##########################################################################
+fw register ./assets/dataset-aime25
+fw register ./assets/dataset-aime25 --type dataset --name aime25 --description "AIME 2025 评测集" --tag v2 --yes -o json
+##########################################################################

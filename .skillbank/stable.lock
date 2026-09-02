@@ -1,0 +1,14 @@
+{
+  "artifacts": [
+    {
+      "artifact_id": "agent-cli-design",
+      "artifact_kind": "execution_skill",
+      "path": ".skillbank/execution-skills/agent-cli-design/revisions/v2",
+      "revision": "sha256:32f3e844f669cb76d1a00b466a208273c445d9e0d58da0415d0b651b662257ab",
+      "sha256": "sha256:32f3e844f669cb76d1a00b466a208273c445d9e0d58da0415d0b651b662257ab"
+    }
+  ],
+  "generation": 3,
+  "project_id": "flywheel",
+  "schema_version": 1
+}

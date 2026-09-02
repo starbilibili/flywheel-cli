@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "source_pattern_id": "cli-product-surface-not-provider-transcript",
+  "proposed_target": "execution_skill",
+  "summary": "A functional CLI is incomplete when its happy path exposes provider names, protocols, subprocess prompts, or visually fragmented output. The product CLI must own terminology, interaction hierarchy, progress, errors, and result handoff."
+}

@@ -1,0 +1,9 @@
+# 查看资源
+1. 根据 tag 或 digest 查看 metadata、文件清单和引用关系。
+2. 只查看信息，不下载 Payload。
+
+##########################################################################
+fw resource inspect local:./assets/dataset-aime25 --base-dir /personal/fw
+fw resource inspect users/<uid>/aime25-evaluator:v1
+fw resource inspect users/<uid>/aime25-evaluator@sha256:<digest> -o json
+##########################################################################

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "plan_id": "sha256:6d5605e66e1e76e52c91cac089c9ce1d754254fc7b0a274e37c65ccce7ebae93",
+  "baseline_sha256": "sha256:86e3e16a5e7214e3ed5dc4889d4af3579955768b2337da1295252465244b26b8",
+  "candidate_sha256": "sha256:32f3e844f669cb76d1a00b466a208273c445d9e0d58da0415d0b651b662257ab",
+  "attribution_passed": true,
+  "transfer_passed": true,
+  "regression_passed": true,
+  "attempts": 1,
+  "metrics": {
+    "skill_validation": "passed",
+    "product_surface_contract": "passed",
+    "progress_and_result_handoff": "passed",
+    "json_stdout_stderr_contract": "passed"
+  },
+  "artifact_hashes": [
+    "sha256:32f3e844f669cb76d1a00b466a208273c445d9e0d58da0415d0b651b662257ab"
+  ]
+}

@@ -1,0 +1,8 @@
+# 生成评测计划
+1. 读取 Task Spec，解析 Dataset、Model、Evaluation Config 和 Script 四个资源。
+2. 将所有资源锁定到不可变版本，输出 Run Spec，但不启动任务。
+
+##########################################################################
+fw eval plan --config config.yaml
+fw eval plan --config config.yaml -o json
+##########################################################################

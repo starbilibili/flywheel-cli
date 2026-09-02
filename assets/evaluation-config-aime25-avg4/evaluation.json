@@ -1,0 +1,33 @@
+{
+  "schema_version": "aime-evaluation-config/v1",
+  "name": "aime25-avg4-openai-api",
+  "benchmark": "AIME25",
+  "problem_count": 30,
+  "samples": {
+    "seeds": [0, 1, 2, 3],
+    "metric": "mean_pass_at_1"
+  },
+  "request": {
+    "prompt_suffix": "Let's think step by step and output the final answer within \\boxed{}.",
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": -1,
+    "max_output_tokens": 40960,
+    "stream": true
+  },
+  "execution": {
+    "concurrency": 8,
+    "timeout_sec": 1800
+  },
+  "grading": {
+    "answer_extraction": "last_boxed_integer",
+    "comparison": "exact_integer_match"
+  },
+  "attempt_policy": {
+    "eligible_finish_reason": "stop",
+    "length_terminated_status": "operational_invalid",
+    "invalid_attempts_in_denominator": false,
+    "final_score_gate": "Every planned problem/seed slot must have one eligible selected attempt.",
+    "replacement_policy": "Run a new physical attempt for the same logical problem/seed slot; retain the invalid attempt as provenance and select only an eligible replacement."
+  }
+}
