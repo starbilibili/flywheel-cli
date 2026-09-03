@@ -245,7 +245,7 @@ fw task status <run-id> --lbg-job-id <lebesgue-job-id>
 | `FLYWHEEL_LBG_IMAGE` | LBG Job 使用的容器镜像 |
 | `FLYWHEEL_LBG_SKU` | LBG Job 使用的计算规格 |
 | `FLYWHEEL_LBG_ENDPOINT` | LBG OpenAPI 地址，默认 `https://open.bohrium.com` |
-| `FLYWHEEL_LBG_AUDIENCE` | LBG Vouch audience，默认 `lbg` |
+| `FLYWHEEL_LBG_AUDIENCE` | LBG 请求使用的 Vouch audience，默认 `wenyon-svc`；仅当网关明确提供其他 audience 时覆盖 |
 | `BOHRIUM_ACCESS_KEY` | 当前 Flywheel 流程不使用；仅在未来切换官方 `lbg` CLI / Sandbox 方案时涉及 |
 | `BOHRIUM_PROJECT_ID` | LBG 项目数字 ID |
 
