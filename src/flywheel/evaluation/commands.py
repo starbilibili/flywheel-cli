@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import time
@@ -188,7 +189,24 @@ def status(
         settings = LbgSettings.from_environment()
         client = LbgClient(settings)
         remote = client.sandbox_detail(sandbox_id)
-        emit({"run_id": run_id, "backend": "sandbox", "remote": _redact_remote(remote)}, output)
+        execution: dict[str, object] = {}
+        try:
+            connection = client.sandbox_connect(sandbox_id)
+            for name in ("/work/progress.json", "/work/outputs/progress.json"):
+                try:
+                    raw = client.sandbox_read_file(connection, name)
+                    execution["progress"] = json.loads(raw)
+                    break
+                except (EvaluationError, json.JSONDecodeError):
+                    continue
+            try:
+                log = client.sandbox_read_file(connection, "/work/stdout.log")
+                execution["log_tail"] = log[-4000:]
+            except EvaluationError:
+                pass
+        except EvaluationError as error:
+            execution["error"] = str(error)
+        emit({"run_id": run_id, "backend": "sandbox", "remote": _redact_remote(remote), "execution": execution}, output)
         return
     if lbg_job_id or bohr_job_id:
         settings = LbgSettings.from_environment()

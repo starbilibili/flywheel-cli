@@ -374,7 +374,10 @@ class LbgClient:
         connected = Sandbox(sandbox_id=sid, sandbox_domain=domain,
             envd_version=Version(str(sandbox.get("envdVersion", "0.2.10"))),
             envd_access_token=token, traffic_access_token=None, connection_config=config)
-        return connected.files.read(path)
+        try:
+            return connected.files.read(path)
+        except Exception as error:
+            raise EvaluationError(f"Sandbox 文件不存在或无法读取：{path}") from error
 
 
 def build_input_bundle(plan: RunPlan) -> Path:
