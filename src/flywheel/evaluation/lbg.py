@@ -293,6 +293,43 @@ class LbgClient:
     def delete_sandbox(self, sandbox_id: str) -> Any:
         return self._json("DELETE", f"/openapi/v4/sandbox_work/sandboxes/{sandbox_id}")
 
+    def sandbox_exec(self, sandbox: dict[str, Any], command: str) -> dict[str, Any]:
+        """Execute a command through the Sandbox envd channel.
+
+        The control-plane JWT is used only for ``/connect``.  The returned
+        short-lived envd token is passed to the SDK connection and never
+        persisted or included in the result.
+        """
+        try:
+            from packaging.version import Version
+            from e2b import Sandbox
+            from e2b.connection_config import ConnectionConfig
+        except ImportError as error:
+            raise EvaluationError("Sandbox 执行需要安装 e2b 依赖") from error
+        sandbox_id = str(sandbox["sandboxID"])
+        envd_token = str(sandbox["envdAccessToken"])
+        domain = str(sandbox.get("domain") or "bohr-sandbox.bohrium.com")
+        config = ConnectionConfig(
+            domain=domain,
+            validate_api_key=False,
+            extra_sandbox_headers={
+                "E2b-Sandbox-Id": sandbox_id,
+                "E2b-Sandbox-Port": "49983",
+                "X-Access-Token": envd_token,
+            },
+            request_timeout=60,
+        )
+        connected = Sandbox(
+            sandbox_id=sandbox_id,
+            sandbox_domain=domain,
+            envd_version=Version(str(sandbox.get("envdVersion", "0.2.10"))),
+            envd_access_token=envd_token,
+            traffic_access_token=None,
+            connection_config=config,
+        )
+        result = connected.commands.run(command, timeout=60)
+        return {"exit_code": result.exit_code, "stdout": result.stdout, "stderr": result.stderr}
+
 
 def build_input_bundle(plan: RunPlan) -> Path:
     """Build the minimal remote input tree without credentials."""
