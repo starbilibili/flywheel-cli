@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import json
 import base64
 import os
+import shlex
 from pathlib import Path
 import shutil
 import tempfile
@@ -299,27 +300,24 @@ def _runtime_environment(plan: RunPlan) -> dict[str, str]:
     return {credential_env: credential}
 
 
-def submit(plan: RunPlan, settings: LbgSettings, *, dry_run: bool = False) -> Any:
+def submit(
+    plan: RunPlan,
+    settings: LbgSettings,
+    *,
+    dry_run: bool = False,
+) -> Any:
     """Submit one run through LBG create, upload, and add phases."""
 
+    credential_env: str | None = None
+    credential_value: str | None = None
     if not dry_run:
-        # Read only the declaration here.  Do not resolve the secret before
-        # failing: the Job API has no verified channel for injecting it.
-        try:
-            effective = json.loads(plan.effective_run_config.read_text(encoding="utf-8"))
-            credential_env = effective["model"]["credential_env"]
-        except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
-            raise EvaluationError("Effective Run Config 缺少 model.credential_env") from error
-        if isinstance(credential_env, str) and credential_env:
-            raise EvaluationError(
-                "LBG Job API 当前没有可验证的安全凭据注入通道；"
-                "已停止提交。不能把模型 API key 写入 cmd、effective-run-config.json 或输入 ZIP。"
-                "请改用支持 lbg sdbx create --env 的 Sandbox 执行后端，"
-                "或先确认 Job API 的官方 Secret 注入字段。"
-            )
+        runtime_environment = _runtime_environment(plan)
+        credential_env, credential_value = next(iter(runtime_environment.items()))
 
     bundle = build_input_bundle(plan)
     command = "./run.sh --run-config ./effective-run-config.json"
+    if credential_env and credential_value is not None:
+        command = f"export {credential_env}={shlex.quote(credential_value)} && {command}"
     argv = [
         "lbg", "job", "submit", "--project_id", settings.project_id,
         "--image_name", settings.image, "--scass_type", settings.sku,

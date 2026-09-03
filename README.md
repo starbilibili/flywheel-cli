@@ -211,7 +211,7 @@ fw task submit --config config.yaml
 fw task submit --config config.yaml --backend lbg --dry-run
 ```
 
-当前 LBG Job API 的资源打包、创建、上传、提交和状态查询使用 Vouch JWT，已经接通；但模型 API Key 的安全注入字段尚未被 Job API 支持确认。检测到模型凭据时，Flywheel 会在创建远端 Job 前拒绝提交，绝不会把 Key 写进命令、配置或 ZIP。
+当前 LBG Job API 的资源打包、创建、上传、提交和状态查询使用 Vouch JWT，已经接通。为验证端到端流程，当前实现会把 `model.credential_env` 对应的值以内联 `export NAME=value && ./run.sh ...` 放入 Job 的 `cmd`；这仅用于测试，凭据可能出现在远端命令元数据或进程信息中，不适合作为生产方案。后续应切换到 LBG Sandbox 的官方环境变量/Secret 注入能力。
 
 LBG 的 `lbg sdbx create --env KEY=VALUE` 已确认支持安全注入，但切换到 Sandbox 后，任务 ID、状态、日志和结果接口需要单独适配。
 
