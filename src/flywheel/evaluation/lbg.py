@@ -330,6 +330,51 @@ class LbgClient:
         result = connected.commands.run(command, timeout=60)
         return {"exit_code": result.exit_code, "stdout": result.stdout, "stderr": result.stderr}
 
+    def sandbox_upload_and_start(self, sandbox: dict[str, Any], bundle: Path) -> dict[str, Any]:
+        """Upload a text-based run bundle and launch it asynchronously."""
+        try:
+            from packaging.version import Version
+            from e2b import Sandbox
+            from e2b.connection_config import ConnectionConfig
+        except ImportError as error:
+            raise EvaluationError("Sandbox 执行需要安装 e2b 依赖") from error
+        sandbox_id = str(sandbox["sandboxID"])
+        token = str(sandbox["envdAccessToken"])
+        domain = str(sandbox.get("domain") or "bohr-sandbox.bohrium.com")
+        config = ConnectionConfig(domain=domain, validate_api_key=False,
+            extra_sandbox_headers={"E2b-Sandbox-Id": sandbox_id,
+                "E2b-Sandbox-Port": "49983", "X-Access-Token": token}, request_timeout=60)
+        connected = Sandbox(sandbox_id=sandbox_id, sandbox_domain=domain,
+            envd_version=Version(str(sandbox.get("envdVersion", "0.2.10"))),
+            envd_access_token=token, traffic_access_token=None, connection_config=config)
+        for path in sorted(bundle.rglob("*")):
+            if path.is_file():
+                relative = path.relative_to(bundle).as_posix()
+                connected.files.write(f"/work/{relative}", path.read_text(encoding="utf-8"))
+        result = connected.commands.run(
+            "chmod +x /work/run.sh && cd /work && nohup ./run.sh --run-config ./effective-run-config.json > stdout.log 2>&1 & echo $!",
+            timeout=60,
+        )
+        return {"exit_code": result.exit_code, "stdout": result.stdout, "stderr": result.stderr}
+
+    def sandbox_read_file(self, sandbox: dict[str, Any], path: str) -> str:
+        """Read a UTF-8 progress or log file from a connected Sandbox."""
+        try:
+            from packaging.version import Version
+            from e2b import Sandbox
+            from e2b.connection_config import ConnectionConfig
+        except ImportError as error:
+            raise EvaluationError("Sandbox 执行需要安装 e2b 依赖") from error
+        sid, token = str(sandbox["sandboxID"]), str(sandbox["envdAccessToken"])
+        domain = str(sandbox.get("domain") or "bohr-sandbox.bohrium.com")
+        config = ConnectionConfig(domain=domain, validate_api_key=False,
+            extra_sandbox_headers={"E2b-Sandbox-Id": sid, "E2b-Sandbox-Port": "49983",
+                                   "X-Access-Token": token}, request_timeout=30)
+        connected = Sandbox(sandbox_id=sid, sandbox_domain=domain,
+            envd_version=Version(str(sandbox.get("envdVersion", "0.2.10"))),
+            envd_access_token=token, traffic_access_token=None, connection_config=config)
+        return connected.files.read(path)
+
 
 def build_input_bundle(plan: RunPlan) -> Path:
     """Build the minimal remote input tree without credentials."""
@@ -439,12 +484,15 @@ def submit_sandbox(plan: RunPlan, settings: LbgSettings) -> dict[str, Any]:
         raise EvaluationError("Sandbox 配置不完整，请设置 FLYWHEEL_LBG_TEMPLATE")
     timeout = int(os.environ.get("FLYWHEEL_LBG_TIMEOUT", "3600"))
     client = LbgClient(settings)
-    created = client.create_sandbox(
-        template=template,
-        timeout=timeout,
-        envs=runtime_environment,
-        metadata={"flywheel_run_id": plan.run_id},
-    )
-    sandbox_id = str(created["sandboxID"])
-    connection = client.sandbox_connect(sandbox_id)
-    return {"sandbox": created, "connection": connection, "run_id": plan.run_id}
+    bundle = build_input_bundle(plan)
+    try:
+        created = client.create_sandbox(template=template, timeout=timeout,
+            envs=runtime_environment, metadata={"flywheel_run_id": plan.run_id})
+        sandbox_id = str(created["sandboxID"])
+        connection = client.sandbox_connect(sandbox_id)
+        launch = client.sandbox_upload_and_start(created, bundle)
+        return {"sandbox": created, "connection": connection, "launch": launch, "run_id": plan.run_id}
+    except BaseException:
+        raise
+    finally:
+        shutil.rmtree(bundle, ignore_errors=True)
