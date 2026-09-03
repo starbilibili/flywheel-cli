@@ -17,10 +17,11 @@ from flywheel.evaluation.background import launch_background
 from flywheel.evaluation.planner import create_run_plan
 from flywheel.evaluation.runner import execute_run, expected_attempts
 from flywheel.evaluation.store import read_json, write_json
+from flywheel.evaluation.lbg import LbgClient, LbgSettings, submit as submit_lbg
 from flywheel.presentation import EvaluationProgress, emit, render_run_status
 
 
-app = typer.Typer(help="Plan, submit, and inspect evaluation runs.")
+app = typer.Typer(help="Plan, submit, and inspect Task runs.")
 
 
 def _process_exists(pid: object) -> bool:
@@ -82,8 +83,34 @@ def plan(
 def submit(
     config: Path = typer.Option(..., "--config"),
     wait: bool = typer.Option(False, "--wait"),
+    backend: str = typer.Option("lbg", "--backend", help="运行后端：lbg（默认）或 local。"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="仅构建 LBG 提交参数，不创建远程 Job。"),
 ) -> None:
-    """Submit one local evaluation, detached by default or watched with --wait."""
+    """Submit one Task, using LBG by default or the local development backend."""
+    if backend not in {"lbg", "local"}:
+        raise EvaluationError("--backend 只能是 lbg 或 local")
+    if backend == "lbg":
+        run_plan = _plan(config)
+        settings = LbgSettings.from_environment(config.resolve().parent)
+        command = submit_lbg(run_plan, settings, dry_run=dry_run)
+        if dry_run:
+            emit({"status": "dry-run", "backend": "lbg", "command": command, "run_dir": str(run_plan.run_dir)}, "text")
+        else:
+            submission = command
+            write_json(run_plan.run_dir / "remote-submission.json", {
+                "schema_version": "fw-lbg-submission/v1",
+                "backend": "lbg",
+                "run_id": run_plan.run_id,
+                "submission": submission,
+            })
+            write_json(run_plan.run_dir / "status.json", {
+                **read_json(run_plan.run_dir / "status.json"),
+                "status": "submitted",
+                "backend": "lbg",
+                "remote_submission": str(run_plan.run_dir / "remote-submission.json"),
+            })
+            emit({"status": "submitted", "backend": "lbg", "submission": submission, "run_dir": str(run_plan.run_dir)}, "text")
+        return
 
     run_plan = _plan(config)
     if wait:
@@ -96,7 +123,7 @@ def submit(
     worker_pid, worker_log = launch_background(run_plan)
     output_root = run_plan.run_dir.parent
     status_command = (
-        f"fw eval status {shlex.quote(run_plan.run_id)} "
+        f"fw task status {shlex.quote(run_plan.run_id)} "
         f"--output-dir {shlex.quote(str(output_root))} --watch"
     )
     emit(
@@ -118,8 +145,19 @@ def status(
     output_dir: Path = typer.Option(Path("runs"), "--output-dir"),
     watch: bool = typer.Option(False, "--watch"),
     output: str = typer.Option("text", "--output", "-o"),
+    lbg_job_id: str | None = typer.Option(None, "--lbg-job-id", help="查询 Lebesgue Job ID。"),
+    bohr_job_id: str | None = typer.Option(None, "--bohr-job-id", help="查询 Bohrium Job ID。"),
 ) -> None:
-    """Read the latest state of one local run."""
+    """Read the latest state of one local run or a remote LBG Job."""
+
+    if lbg_job_id and bohr_job_id:
+        raise EvaluationError("--lbg-job-id 和 --bohr-job-id 只能选择一个")
+    if lbg_job_id or bohr_job_id:
+        settings = LbgSettings.from_environment()
+        client = LbgClient(settings)
+        remote = client.detail(bohr_job_id) if bohr_job_id else client.find_job(lbg_job_id or "")
+        emit({"run_id": run_id, "backend": "lbg", "remote": remote}, output)
+        return
 
     path = output_dir.resolve() / run_id / "status.json"
     if not path.is_file():

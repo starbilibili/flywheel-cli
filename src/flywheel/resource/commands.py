@@ -45,6 +45,7 @@ _TYPE_CHOICES = (
     ("2", ResourceType.MODEL, "Model"),
     ("3", ResourceType.CONFIG, "Config"),
     ("4", ResourceType.SCRIPT, "Script"),
+    ("5", ResourceType.TASK, "Task"),
 )
 
 
@@ -88,7 +89,7 @@ def _choose_resource_type() -> ResourceType:
         selected = typer.prompt("请输入序号", default="1")
         if selected in choices:
             return choices[selected]
-        typer.echo("请输入 1、2、3 或 4。", err=True)
+        typer.echo("请输入 1、2、3、4 或 5。", err=True)
 
 
 def _show_registration(plan: RegistrationPlan) -> None:
@@ -130,7 +131,7 @@ def _resource_name(value: str | None) -> str:
 def _choose_resource(candidates: tuple[ResourceCandidate, ...]) -> ResourceCandidate | None:
     table = Table(title="发现该任务下的同类型资源")
     table.add_column("序号", style="bold cyan", width=4)
-    table.add_column("Resource ID", style="bold")
+    table.add_column("Resource ID", style="bold", overflow="fold")
     table.add_column("资源描述", overflow="fold")
     table.add_column("创建时间")
     table.add_row("0", "创建新资源", "-", "-")
@@ -245,15 +246,14 @@ def _tag_conflict_choice(value: str, existing: SnapshotCandidate) -> str:
     table = Table(title="请选择处理方式", show_header=False)
     table.add_column("序号", style="bold cyan", width=4)
     table.add_column("操作")
-    table.add_row("1", f"将标签 {value} 移动到本次 Snapshot")
-    table.add_row("2", "输入新的标签")
-    table.add_row("3", "取消注册")
+    table.add_row("1", "输入新的标签")
+    table.add_row("2", "取消注册")
     _console.print(table)
     while True:
         selected = typer.prompt("请输入序号", default="2")
-        if selected in {"1", "2", "3"}:
+        if selected in {"1", "2"}:
             return selected
-        typer.echo("请输入 1、2 或 3。", err=True)
+        typer.echo("请输入 1 或 2。", err=True)
 
 
 def _new_tag() -> str:
@@ -271,12 +271,22 @@ def _tag_value(provided: str | None, storage_repo: str | None) -> str | None:
         if existing is None:
             return value
         choice = _tag_conflict_choice(value, existing)
-        if choice == "1":
-            return value
-        if choice == "3":
+        if choice == "2":
             raise FlywheelError("已取消资源注册")
         value = _new_tag()
     return value
+
+
+def _ensure_tag_available(storage_repo: str | None, tag: str | None) -> None:
+    """Reject immutable-tag reuse in machine-readable registration."""
+
+    if not storage_repo or not tag:
+        return
+    existing = _existing_tag(storage_repo, tag)
+    if existing is not None:
+        raise FlywheelError(
+            f"标签 {tag} 已绑定 Snapshot {existing.digest}，不能转移；请使用新的标签"
+        )
 
 
 def _resource_metadata(
@@ -414,10 +424,6 @@ def register(
             "JSON output requires --type and --name to avoid prompts"
         )
     selected_type = resource_type or _choose_resource_type()
-    if selected_type is ResourceType.TASK:
-        raise FlywheelError(
-            "Task 资源由 fw task create 组合生成，不能通过本地路径直接注册"
-        )
     selected_resource_name = _resource_name(name)
     selected_resource, parent_snapshot, history_status = _registration_target(
         selected_type,
@@ -439,6 +445,11 @@ def register(
         if output == "text"
         else _validate_tag(tag)
     )
+    if output == "json":
+        _ensure_tag_available(
+            selected_resource.storage_repo if selected_resource else None,
+            selected_tag,
+        )
     plan = prepare_registration(
         path,
         selected_type,
@@ -554,7 +565,7 @@ def search(
         return
     table = Table(title=f"{selected_name} 的资源")
     table.add_column("类型", style="bold cyan")
-    table.add_column("Resource ID", style="bold")
+    table.add_column("Resource ID", style="bold", overflow="fold")
     table.add_column("描述", overflow="fold")
     table.add_column("Storage Repo", overflow="fold")
     for selected_type, candidate in registry_resources:

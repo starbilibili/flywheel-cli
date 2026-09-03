@@ -111,6 +111,18 @@ def load_run_config(path: Path) -> dict:
     return value
 
 
+def workspace_path(workspace: Path, declared: object, field: str) -> Path:
+    """Resolve a generated path without allowing absolute/path-traversal escapes."""
+    if not isinstance(declared, str) or not declared or Path(declared).is_absolute():
+        raise ValueError(f"{field} must be a relative path")
+    candidate = (workspace / declared).resolve()
+    try:
+        candidate.relative_to(workspace.resolve())
+    except ValueError as error:
+        raise ValueError(f"{field} escapes the run workspace") from error
+    return candidate
+
+
 def count_records(path: Path) -> int:
     """Count selected JSONL records without interpreting Task Spec details."""
 
@@ -126,7 +138,8 @@ def main() -> None:
     args = parser.parse_args()
 
     run_config = load_run_config(args.run_config)
-    dataset = Path(run_config["dataset"]["path"])
+    workspace = args.run_config.parent
+    dataset = workspace_path(workspace, run_config["dataset"]["path"], "dataset.path")
     model = run_config["model"]
     settings = run_config["evaluation_config"]
     output = run_config["output"]
@@ -141,8 +154,8 @@ def main() -> None:
     if not isinstance(seed_values, list):
         raise ValueError("Evaluation Config samples.seeds must be a list")
     seeds = parse_seeds(",".join(str(seed) for seed in seed_values))
-    output_dir = Path(output["attempts"])
-    summary_output = Path(output["summary"])
+    output_dir = workspace_path(workspace, output["attempts"], "output.attempts")
+    summary_output = workspace_path(workspace, output["summary"], "output.summary")
     output_dir.mkdir(parents=True, exist_ok=True)
     canary_script = Path(__file__).with_name("run_vllm_canary.py")
     tasks = [

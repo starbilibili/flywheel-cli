@@ -10,8 +10,8 @@
 当前完整链路：
 
 ```bash
-fw eval submit --config config.yaml
-fw eval status <run-id> --output-dir ./runs --watch
+fw task submit --config config.yaml
+fw task status <run-id> --output-dir ./runs --watch
 ```
 
 `flywheel/evaluation/background.py` 负责启动本机后台 worker，`worker.py` 负责执行已经固化的执行计划。

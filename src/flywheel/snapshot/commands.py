@@ -100,7 +100,7 @@ def search(
         typer.echo(f"资源 {resource_id} 当前没有可见的 Snapshot 指向。")
         return
     table = Table(title=f"{resource_id} 的 Snapshot")
-    table.add_column("Manifest Digest", style="bold")
+    table.add_column("Manifest Digest", style="bold", overflow="fold")
     table.add_column("标签")
     for snapshot in snapshots:
         table.add_row(

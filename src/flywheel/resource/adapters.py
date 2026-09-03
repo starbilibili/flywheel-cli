@@ -15,7 +15,7 @@ from flywheel.runtime.environment import ModelBinding, load_dotenv
 
 @dataclass(frozen=True)
 class DatasetBinding:
-    """Normalized question-answer dataset files."""
+    """Common tabular dataset files; row semantics are owned by the Script."""
 
     files: tuple[Path, ...]
 
@@ -52,9 +52,9 @@ def _spec_string(resource: ResolvedResource, field: str) -> str:
 
 
 def bind_dataset(resource: ResolvedResource) -> DatasetBinding:
-    """Bind a JSONL question-answer Dataset resource."""
+    """Bind a Dataset resource without imposing field names or QA schema."""
 
-    if resource.adapter != "jsonl-question-answer/v1":
+    if resource.adapter not in {"jsonl/v1", "jsonl-question-answer/v1"}:
         raise ResourceError(f"Unsupported Dataset adapter: {resource.adapter}")
     declared_files = resource.spec.get("files")
     if not isinstance(declared_files, list) or not declared_files:
@@ -82,15 +82,18 @@ def bind_config(resource: ResolvedResource) -> dict[str, Any]:
 
 
 def bind_script(resource: ResolvedResource) -> ScriptBinding:
-    """Bind one Python Script resource implementing the QA protocol."""
+    """Bind any Script resource exposing the standard ``run.sh`` entrypoint.
 
-    if resource.adapter != "python-qa-script/v1":
-        raise ResourceError(f"Unsupported Script adapter: {resource.adapter}")
-    protocol = _spec_string(resource, "protocol")
-    if protocol != "fw-qa-script/v1":
-        raise ResourceError(f"Unsupported Script protocol: {protocol}")
+    The launcher owns its dataset schema and runtime protocol.  Flywheel only
+    enforces the stable entrypoint so previously unseen script resources remain
+    usable without a new adapter release.
+    """
+
+    protocol = resource.spec.get("protocol", "custom")
+    if not isinstance(protocol, str) or not protocol.strip():
+        protocol = "custom"
     command = _relative_path(resource, "run.sh", "run.sh")
-    return ScriptBinding(command=(str(command),), protocol=protocol)
+    return ScriptBinding(command=(str(command),), protocol=protocol.strip())
 
 
 def bind_model(resource: ResolvedResource, project_root: Path) -> ModelBinding:

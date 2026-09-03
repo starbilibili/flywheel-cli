@@ -40,13 +40,14 @@ def load_evaluation_request(path: Path) -> EvaluationRequest:
 
     root = _mapping(document, "config")
     schema_version = _string(root, "schema_version")
-    if schema_version != "fw-eval/v2":
+    if schema_version not in {"fw-eval/v2", "fw-task/v1"}:
         raise ConfigError(f"Unsupported schema_version: {schema_version!r}")
-    task = _string(root, "task")
-    if task != "eval":
-        raise ConfigError(f"Unsupported task: {task!r}")
+    task_type = _string(root, "task_type") if schema_version == "fw-task/v1" else "eval"
+    if task_type not in {"eval", "train"}:
+        raise ConfigError("task_type must be eval or train")
 
-    resources = _mapping(root.get("resources"), "resources")
+    task_ref = _string(root, "task") if schema_version == "fw-task/v1" else None
+    resources = _mapping(root.get("resources"), "resources") if schema_version == "fw-eval/v2" else None
     selection_data = _mapping(root.get("selection"), "selection")
     strategy = _string(selection_data, "strategy")
     if strategy != "random":
@@ -63,13 +64,14 @@ def load_evaluation_request(path: Path) -> EvaluationRequest:
 
     return EvaluationRequest(
         schema_version=schema_version,
-        task=task,
+        task_type=task_type,
+        task_ref=task_ref,
         output_dir=_string(root, "output_dir"),
         resources=ResourceReferences(
-            dataset=_string(resources, "dataset"),
-            model=_string(resources, "model"),
-            config=_string(resources, "config"),
-            script=_string(resources, "script"),
+            dataset=_string(resources, "dataset") if resources else "",
+            model=_string(resources, "model") if resources else "",
+            config=_string(resources, "config") if resources else "",
+            script=_string(resources, "script") if resources else "",
         ),
         selection=SelectionRequest(
             strategy=strategy,

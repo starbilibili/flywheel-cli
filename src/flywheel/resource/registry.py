@@ -174,6 +174,33 @@ def publish_manifest(
     return _published(put_manifest(repo, tag, manifest), repo, tag)
 
 
+def publish_composed_snapshot(
+    repo: str,
+    manifest: dict[str, Any],
+    *,
+    tag: str | None,
+    new_resource: bool,
+) -> PublishedSnapshot:
+    """Publish a ref-only Resource Snapshot without a staging blob upload."""
+
+    target_created = False
+    try:
+        if new_resource:
+            _require_json("registry", "repo", "create", repo)
+            target_created = True
+        return _publish_resource_tags(repo, manifest, tag)
+    except FlywheelError as error:
+        cleanup_error = (
+            _run_text("registry", "repo", "delete", repo, "--yes")
+            if target_created
+            else None
+        )
+        message = "Task Snapshot 发布失败"
+        if cleanup_error:
+            message += f"，且新建 Repo 清理失败：{repo}（{cleanup_error}）"
+        raise FlywheelError(message) from error
+
+
 def _identity_cache_path() -> Path:
     return Path.home() / ".config" / "flywheel" / _CACHE_NAME
 

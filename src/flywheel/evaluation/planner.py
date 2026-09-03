@@ -60,6 +60,66 @@ def _expected_attempts(settings: dict, selected_count: int) -> int:
     return selected_count * len(seeds)
 
 
+def _dependency_refs(request: EvaluationRequest, project_root: Path) -> tuple[str, str, str, str]:
+    """Return the four dependency references from a Task or legacy request."""
+
+    if request.task_ref:
+        task = resolve_resource(request.task_ref, "task", project_root)
+        values = task.spec.get("resources")
+        if not isinstance(values, dict):
+            raise EvaluationError("Task Resource 缺少 resources")
+        try:
+            refs = tuple(str(values[key]) for key in ("dataset", "model", "config", "script"))
+        except KeyError as error:
+            raise EvaluationError(f"Task Resource 缺少依赖：{error.args[0]}") from error
+        if not all(refs):
+            raise EvaluationError("Task Resource 的依赖引用不能为空")
+        return refs[0], refs[1], refs[2], refs[3]
+    if request.resources is None:
+        raise EvaluationError("配置缺少 Task Resource")
+    return (
+        request.resources.dataset,
+        request.resources.model,
+        request.resources.config,
+        request.resources.script,
+    )
+
+
+def _write_effective_config(
+    path: Path,
+    *,
+    run_id: str,
+    resources: dict[str, dict[str, str]],
+    dataset_adapter: str,
+    model: object,
+    settings: dict,
+) -> None:
+    """Persist the portable config consumed by both local and remote runners."""
+
+    write_json(
+        path,
+        {
+            "schema_version": "fw-effective-run-config/v1",
+            "run_id": run_id,
+            "resources": resources,
+            "dataset": {"format": dataset_adapter, "path": "inputs/selected-dataset.jsonl"},
+            "model": {
+                "protocol": "openai-compatible/v1",
+                "name": model.name,
+                "endpoint": model.endpoint,
+                "model": model.model,
+                "credential_env": model.credential_env,
+            },
+            "evaluation_config": settings,
+            "output": {
+                "directory": "outputs",
+                "attempts": "outputs/attempts",
+                "summary": "outputs/script-summary.json",
+            },
+        },
+    )
+
+
 def _write_execution_plan(plan: RunPlan) -> None:
     """Persist the resolved, credential-free inputs consumed by a worker."""
 
@@ -88,11 +148,16 @@ def load_run_plan(run_dir: Path) -> RunPlan:
     if not all(isinstance(item, str) and item for item in script_command):
         raise EvaluationError("Execution plan script_command entries must be strings")
     try:
+        effective = Path(str(value["effective_run_config"]))
+        if not effective.is_absolute():
+            effective = resolved_run_dir / effective
+        effective = effective.resolve()
+        effective.relative_to(resolved_run_dir)
         return RunPlan(
             run_id=str(value["run_id"]),
             run_dir=resolved_run_dir,
             script_command=tuple(script_command),
-            effective_run_config=Path(str(value["effective_run_config"])),
+            effective_run_config=effective,
             expected_attempts=int(value["expected_attempts"]),
         )
     except KeyError as error:
@@ -106,10 +171,11 @@ def create_run_plan(
 ) -> RunPlan:
     """Resolve resources, materialize sampling, and persist the exact Run Spec."""
 
-    dataset = resolve_resource(request.resources.dataset, "dataset", project_root)
-    model_resource = resolve_resource(request.resources.model, "model", project_root)
-    config_resource = resolve_resource(request.resources.config, "config", project_root)
-    script_resource = resolve_resource(request.resources.script, "script", project_root)
+    dataset_ref, model_ref, config_ref, script_ref = _dependency_refs(request, project_root)
+    dataset = resolve_resource(dataset_ref, "dataset", project_root)
+    model_resource = resolve_resource(model_ref, "model", project_root)
+    config_resource = resolve_resource(config_ref, "config", project_root)
+    script_resource = resolve_resource(script_ref, "script", project_root)
     dataset_binding = bind_dataset(dataset)
     model = bind_model(model_resource, project_root)
     settings = bind_config(config_resource)
@@ -144,30 +210,13 @@ def create_run_plan(
     write_json(run_dir / "run-spec.json", run_spec)
     write_json(run_dir / "selection.json", {"dataset_digest": dataset.digest, **selection})
     effective_run_config = run_dir / "effective-run-config.json"
-    write_json(
+    _write_effective_config(
         effective_run_config,
-        {
-            "schema_version": "fw-effective-run-config/v1",
-            "run_id": run_id,
-            "resources": resources,
-            "dataset": {
-                "format": "jsonl-question-answer/v1",
-                "path": str(selected_dataset),
-            },
-            "model": {
-                "protocol": "openai-compatible/v1",
-                "name": model.name,
-                "endpoint": model.endpoint,
-                "model": model.model,
-                "credential_env": model.credential_env,
-            },
-            "evaluation_config": settings,
-            "output": {
-                "directory": str(run_dir),
-                "attempts": str(run_dir / "attempts"),
-                "summary": str(run_dir / "script-summary.json"),
-            },
-        },
+        run_id=run_id,
+        resources=resources,
+        dataset_adapter=dataset.adapter,
+        model=model,
+        settings=settings,
     )
     plan = RunPlan(
         run_id=run_id,

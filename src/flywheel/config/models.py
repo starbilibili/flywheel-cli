@@ -30,7 +30,8 @@ class EvaluationRequest:
     """Complete user input required to plan one local evaluation run."""
 
     schema_version: str
-    task: str
+    task_type: str
+    task_ref: str | None
     output_dir: str
-    resources: ResourceReferences
+    resources: ResourceReferences | None
     selection: SelectionRequest

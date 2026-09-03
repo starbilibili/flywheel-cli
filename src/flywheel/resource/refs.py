@@ -82,10 +82,13 @@ def _remote_contract(
     resource_type: str, files: tuple[str, ...]
 ) -> tuple[str, dict[str, Any]]:
     if resource_type == "dataset":
-        data_files = [path for path in files if path.lower().endswith(".jsonl")]
+        data_files = [
+            path for path in files
+            if Path(path).suffix.lower() in {".jsonl", ".json", ".csv", ".tsv"}
+        ]
         if not data_files:
-            raise ResourceError("Dataset Snapshot 不包含 JSONL 文件")
-        return "jsonl-question-answer/v1", {"files": data_files}
+            raise ResourceError("Dataset Snapshot 不包含可采样的数据文件（JSONL、JSON、CSV 或 TSV）")
+        return "jsonl/v1", {"files": data_files}
     if resource_type == "config":
         config_files = [path for path in files if path.lower().endswith(".json")]
         if len(config_files) != 1:
@@ -119,7 +122,26 @@ def _resolve_remote(reference: str, expected_type: str | None) -> ResolvedResour
             f"Expected {expected_type} resource, got {resource_type}: {reference}"
         )
     files = _remote_files(snapshot.manifest, snapshot.path)
-    adapter, spec = _remote_contract(resource_type, files)
+    if resource_type == "task":
+        task_file = snapshot.path / "task.yaml"
+        try:
+            task_data = yaml.safe_load(task_file.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError) as error:
+            raise ResourceError(f"Task Snapshot 缺少有效 task.yaml：{reference}") from error
+        if not isinstance(task_data, dict) or not isinstance(task_data.get("resources"), dict):
+            raise ResourceError(f"Task Snapshot 的 resources 字段无效：{reference}")
+        spec = {"resources": task_data["resources"], "task_type": task_data.get("task_type", "eval")}
+    else:
+        spec = None
+    adapter, contract_spec = _remote_contract(resource_type, files)
+    if resource_type == "model":
+        for key in ("endpoint_env", "model_env", "credential_env"):
+            annotation_key = f"flywheel.{key}"
+            value = annotations.get(annotation_key)
+            if isinstance(value, str) and value.strip():
+                contract_spec[key] = value.strip()
+    if spec is None:
+        spec = contract_spec
     name = annotations.get("flywheel.resource_id")
     if not isinstance(name, str) or not name:
         name = snapshot.storage_repo.rsplit("/", 1)[-1]
