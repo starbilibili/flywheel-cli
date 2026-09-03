@@ -52,6 +52,19 @@ def _current_status(path: Path) -> dict[str, object]:
     return current
 
 
+def _redact_remote(value: object) -> object:
+    """Hide credentials that LBG may echo in remote job metadata."""
+
+    if isinstance(value, dict):
+        return {
+            key: ("<redacted>" if key in {"cmd", "token", "accessToken"} else _redact_remote(item))
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_remote(item) for item in value]
+    return value
+
+
 def _plan(config: Path):
     config_path = config.resolve()
     request = load_evaluation_request(config_path)
@@ -156,7 +169,7 @@ def status(
         settings = LbgSettings.from_environment()
         client = LbgClient(settings)
         remote = client.detail(bohr_job_id) if bohr_job_id else client.find_job(lbg_job_id or "")
-        emit({"run_id": run_id, "backend": "lbg", "remote": remote}, output)
+        emit({"run_id": run_id, "backend": "lbg", "remote": _redact_remote(remote)}, output)
         return
 
     path = output_dir.resolve() / run_id / "status.json"
