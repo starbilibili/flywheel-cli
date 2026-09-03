@@ -188,25 +188,65 @@ def status(
     if sandbox_id:
         settings = LbgSettings.from_environment()
         client = LbgClient(settings)
-        remote = client.sandbox_detail(sandbox_id)
-        execution: dict[str, object] = {}
-        try:
-            connection = client.sandbox_connect(sandbox_id)
-            for name in ("/work/progress.json", "/work/outputs/progress.json"):
-                try:
-                    raw = client.sandbox_read_file(connection, name)
-                    execution["progress"] = json.loads(raw)
-                    break
-                except (EvaluationError, json.JSONDecodeError):
-                    continue
+        def snapshot() -> dict[str, object]:
+            remote = client.sandbox_detail(sandbox_id)
+            execution: dict[str, object] = {}
             try:
-                log = client.sandbox_read_file(connection, "/work/stdout.log")
-                execution["log_tail"] = log[-4000:]
-            except EvaluationError:
-                pass
-        except EvaluationError as error:
-            execution["error"] = str(error)
-        emit({"run_id": run_id, "backend": "sandbox", "remote": _redact_remote(remote), "execution": execution}, output)
+                connection = client.sandbox_connect(sandbox_id)
+                for name in ("/work/progress.json", "/work/outputs/progress.json"):
+                    try:
+                        raw = client.sandbox_read_file(connection, name)
+                        execution["progress"] = json.loads(raw)
+                        break
+                    except (EvaluationError, json.JSONDecodeError):
+                        continue
+                try:
+                    log = client.sandbox_read_file(connection, "/work/stdout.log")
+                    execution["log_tail"] = log[-4000:]
+                except EvaluationError:
+                    pass
+            except EvaluationError as error:
+                execution["error"] = str(error)
+            return {"run_id": run_id, "backend": "sandbox", "remote": _redact_remote(remote), "execution": execution}
+
+        current = snapshot()
+        if not watch or output == "json":
+            emit(current, output)
+            return
+        from rich.table import Table
+
+        def render(value: dict[str, object]) -> Table:
+            table = Table(title=f"Sandbox {sandbox_id}")
+            table.add_column("项目")
+            table.add_column("值")
+            remote = value["remote"]
+            execution = value["execution"]
+            state = remote.get("state", "unknown") if isinstance(remote, dict) else "unknown"
+            table.add_row("Sandbox 状态", str(state))
+            progress = execution.get("progress") if isinstance(execution, dict) else None
+            if isinstance(progress, dict):
+                total = progress.get("total", "?")
+                done = progress.get("processed", progress.get("completed", 0))
+                ok = progress.get("succeeded", 0)
+                failed = progress.get("failed", 0)
+                table.add_row("评测进度", f"{done}/{total}")
+                table.add_row("成功 / 失败", f"{ok} / {failed}")
+            else:
+                table.add_row("评测进度", "等待远端 progress.json")
+            if isinstance(execution, dict) and execution.get("log_tail"):
+                table.add_row("最近日志", str(execution["log_tail"])[-1000:])
+            return table
+
+        console = Console()
+        terminal = {"stopped", "failed", "expired", "deleted", "destroying"}
+        with Live(render(current), console=console, refresh_per_second=2) as live:
+            while True:
+                time.sleep(2)
+                current = snapshot()
+                live.update(render(current), refresh=True)
+                remote = current["remote"]
+                if isinstance(remote, dict) and str(remote.get("state")) in terminal:
+                    break
         return
     if lbg_job_id or bohr_job_id:
         settings = LbgSettings.from_environment()
