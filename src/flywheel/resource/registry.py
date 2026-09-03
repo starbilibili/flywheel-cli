@@ -426,13 +426,24 @@ def find_resource_locations(resource_id: str) -> LookupResult:
     payload, reason = _run_json("registry", "search", selected_id)
     if reason:
         return LookupResult(False, reason=reason)
-    expected_leaves = {
-        f"{resource_type.value}-{selected_id}" for resource_type in ResourceType
-    }
     locations: dict[str, ResourceLocation] = {}
     for record in _records(payload, ("items", "results", "resources", "repos")):
         repo = _repo_name(record)
-        if not repo or repo.strip("/").rsplit("/", 1)[-1] not in expected_leaves:
+        if not repo:
+            continue
+        parts = repo.strip("/").split("/")
+        leaf = parts[-1]
+        # Current layout: <type>/<resource-name>-<resource-id>.
+        current_layout = (
+            len(parts) >= 2
+            and parts[-2] in {value.value for value in ResourceType}
+            and leaf.endswith(f"-{selected_id}")
+        )
+        # Legacy layout: <type>-<resource-id> (kept for existing repos).
+        legacy_layout = leaf in {
+            f"{value.value}-{selected_id}" for value in ResourceType
+        }
+        if not (current_layout or legacy_layout):
             continue
         locations[repo] = ResourceLocation(selected_id, repo)
     return LookupResult(True, tuple(locations.values()))
