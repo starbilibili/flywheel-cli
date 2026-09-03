@@ -315,7 +315,7 @@ def submit(
         credential_env, credential_value = next(iter(runtime_environment.items()))
 
     bundle = build_input_bundle(plan)
-    command = "./run.sh --run-config ./effective-run-config.json"
+    command = "./run.sh --run-config ./effective-run-config.json > stdout.log 2>&1"
     if credential_env and credential_value is not None:
         command = f"export {credential_env}={shlex.quote(credential_value)} && {command}"
     argv = [
@@ -340,6 +340,7 @@ def submit(
             "jobName": plan.run_id,
             "imageName": settings.image,
             "scassType": settings.sku,
+            "nnode": 1,
             "cmd": command,
             "jobId": data.get("jobId"),
             "ossPath": [oss_path],
