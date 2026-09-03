@@ -58,7 +58,7 @@ class LbgSettings:
     image: str
     sku: str
     endpoint: str = "https://open.bohrium.com"
-    audience: str = "lbg"
+    audience: str = "wenyon-svc"
 
     @classmethod
     def from_environment(cls, project_root: Path | None = None) -> "LbgSettings":
@@ -80,7 +80,7 @@ class LbgSettings:
         return cls(
             **values,
             endpoint=os.environ.get("FLYWHEEL_LBG_ENDPOINT", "https://open.bohrium.com").rstrip("/"),
-            audience=os.environ.get("FLYWHEEL_LBG_AUDIENCE", "lbg").strip() or "lbg",
+            audience=os.environ.get("FLYWHEEL_LBG_AUDIENCE", "wenyon-svc").strip() or "wenyon-svc",
         )
 
 
