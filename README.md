@@ -77,7 +77,7 @@ fw auth logout
 
 登录时 Flywheel 运行 `trisol login`，然后用 `trisol whoami -o json` 刷新共享会话，再从会话中读取 `wenyon-svc` JWT，以临时环境变量 `WENYON_TOKEN` 调用 Wenyon。JWT 不会写入项目文件、Manifest 或资源包。
 
-当前 Flywheel 直连 LBG Job 使用 Vouch 的 `lbg` audience JWT；不使用 `BOHRIUM_ACCESS_KEY`。后者只属于官方 `lbg` CLI / Sandbox API 的另一套认证方式，不在当前任务执行链路中。
+当前 Flywheel 直连 LBG Job 使用 Vouch 的 `wenyon-svc` audience JWT；不使用 `BOHRIUM_ACCESS_KEY`。后者只属于官方 `lbg` CLI / Sandbox API 的另一套认证方式，不在当前任务执行链路中。
 
 ## 注册资源
 
