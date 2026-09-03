@@ -352,10 +352,11 @@ class LbgClient:
                 relative = path.relative_to(bundle).as_posix()
                 connected.files.write(f"/work/{relative}", path.read_text(encoding="utf-8"))
         result = connected.commands.run(
-            "chmod +x /work/run.sh && cd /work && nohup ./run.sh --run-config ./effective-run-config.json > stdout.log 2>&1 & echo $!",
-            timeout=60,
+            "chmod +x /work/run.sh && cd /work && ./run.sh --run-config ./effective-run-config.json > stdout.log 2>&1",
+            background=True,
+            timeout=0,
         )
-        return {"exit_code": result.exit_code, "stdout": result.stdout, "stderr": result.stderr}
+        return {"started": True, "pid": getattr(result, "pid", None)}
 
     def sandbox_read_file(self, sandbox: dict[str, Any], path: str) -> str:
         """Read a UTF-8 progress or log file from a connected Sandbox."""
