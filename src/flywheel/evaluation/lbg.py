@@ -263,6 +263,36 @@ class LbgClient:
         """Delete a stopped or completed job record."""
         return self._json("POST", f"/openapi/v4/job/del/{job_id}")
 
+    def create_sandbox(
+        self, *, template: str, timeout: int, envs: dict[str, str] | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Create a Sandbox through the v4 OpenAPI gateway.
+
+        ``envVars`` is consumed by the sandbox runtime; ``envs`` is retained
+        for the launching service's metadata store.  Values are never logged.
+        """
+        payload: dict[str, Any] = {"templateID": template, "timeout": int(timeout)}
+        if envs:
+            values = dict(envs)
+            payload["envVars"] = values
+            payload["envs"] = values
+        if metadata:
+            payload["metadata"] = dict(metadata)
+        result = self._json("POST", "/openapi/v4/sandbox_work/sandboxes", payload)
+        if not isinstance(result, dict) or not result.get("sandboxID"):
+            raise EvaluationError("Sandbox 创建返回缺少 sandboxID")
+        return result
+
+    def sandbox_detail(self, sandbox_id: str) -> Any:
+        return self._json("GET", f"/openapi/v4/sandbox_work/sandboxes/{sandbox_id}")
+
+    def sandbox_connect(self, sandbox_id: str) -> Any:
+        return self._json("GET", f"/openapi/v4/sandbox_work/sandboxes/{sandbox_id}/connect")
+
+    def delete_sandbox(self, sandbox_id: str) -> Any:
+        return self._json("DELETE", f"/openapi/v4/sandbox_work/sandboxes/{sandbox_id}")
+
 
 def build_input_bundle(plan: RunPlan) -> Path:
     """Build the minimal remote input tree without credentials."""
@@ -357,3 +387,27 @@ def submit(
         return {"created": safe_created, "submitted": added, "run_id": plan.run_id}
     finally:
         shutil.rmtree(bundle, ignore_errors=True)
+
+
+def submit_sandbox(plan: RunPlan, settings: LbgSettings) -> dict[str, Any]:
+    """Create a Sandbox for a run using the documented v4 API.
+
+    Command execution is intentionally a separate step: unlike Job, Sandbox
+    creation has no ``cmd`` field.  The returned connection descriptor is
+    persisted by the caller and used by the execution adapter.
+    """
+    runtime_environment = _runtime_environment(plan)
+    template = os.environ.get("FLYWHEEL_LBG_TEMPLATE", "").strip()
+    if not template:
+        raise EvaluationError("Sandbox 配置不完整，请设置 FLYWHEEL_LBG_TEMPLATE")
+    timeout = int(os.environ.get("FLYWHEEL_LBG_TIMEOUT", "3600"))
+    client = LbgClient(settings)
+    created = client.create_sandbox(
+        template=template,
+        timeout=timeout,
+        envs=runtime_environment,
+        metadata={"flywheel_run_id": plan.run_id},
+    )
+    sandbox_id = str(created["sandboxID"])
+    connection = client.sandbox_connect(sandbox_id)
+    return {"sandbox": created, "connection": connection, "run_id": plan.run_id}

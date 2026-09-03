@@ -17,7 +17,7 @@ from flywheel.evaluation.background import launch_background
 from flywheel.evaluation.planner import create_run_plan
 from flywheel.evaluation.runner import execute_run, expected_attempts
 from flywheel.evaluation.store import read_json, write_json
-from flywheel.evaluation.lbg import LbgClient, LbgSettings, submit as submit_lbg
+from flywheel.evaluation.lbg import LbgClient, LbgSettings, submit as submit_lbg, submit_sandbox
 from flywheel.presentation import EvaluationProgress, emit, render_run_status
 
 
@@ -57,7 +57,7 @@ def _redact_remote(value: object) -> object:
 
     if isinstance(value, dict):
         return {
-            key: ("<redacted>" if key in {"cmd", "token", "accessToken"} else _redact_remote(item))
+            key: ("<redacted>" if key in {"cmd", "token", "accessToken", "envdAccessToken"} else _redact_remote(item))
             for key, item in value.items()
         }
     if isinstance(value, list):
@@ -96,12 +96,30 @@ def plan(
 def submit(
     config: Path = typer.Option(..., "--config"),
     wait: bool = typer.Option(False, "--wait"),
-    backend: str = typer.Option("lbg", "--backend", help="运行后端：lbg（默认）或 local。"),
+    backend: str = typer.Option("sandbox", "--backend", help="运行后端：sandbox（默认）、lbg（兼容）或 local。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="仅构建 LBG 提交参数，不创建远程 Job。"),
 ) -> None:
     """Submit one Task, using LBG by default or the local development backend."""
-    if backend not in {"lbg", "local"}:
-        raise EvaluationError("--backend 只能是 lbg 或 local")
+    if backend not in {"sandbox", "lbg", "local"}:
+        raise EvaluationError("--backend 只能是 sandbox、lbg 或 local")
+    if backend == "sandbox":
+        run_plan = _plan(config)
+        settings = LbgSettings.from_environment(config.resolve().parent)
+        submission = submit_sandbox(run_plan, settings)
+        sandbox_record = dict(submission["sandbox"])
+        sandbox_record.pop("envdAccessToken", None)
+        write_json(run_plan.run_dir / "remote-submission.json", {
+            "schema_version": "fw-lbg-sandbox-submission/v1",
+            "backend": "sandbox", "run_id": run_plan.run_id,
+            "sandbox_id": submission["sandbox"]["sandboxID"],
+            "sandbox": sandbox_record,
+        })
+        write_json(run_plan.run_dir / "status.json", {
+            **read_json(run_plan.run_dir / "status.json"), "status": "submitted",
+            "backend": "sandbox", "sandbox_id": submission["sandbox"]["sandboxID"],
+        })
+        emit({"status": "submitted", "backend": "sandbox", "sandbox_id": submission["sandbox"]["sandboxID"], "run_dir": str(run_plan.run_dir)}, "text")
+        return
     if backend == "lbg":
         run_plan = _plan(config)
         settings = LbgSettings.from_environment(config.resolve().parent)
@@ -160,11 +178,18 @@ def status(
     output: str = typer.Option("text", "--output", "-o"),
     lbg_job_id: str | None = typer.Option(None, "--lbg-job-id", help="查询 Lebesgue Job ID。"),
     bohr_job_id: str | None = typer.Option(None, "--bohr-job-id", help="查询 Bohrium Job ID。"),
+    sandbox_id: str | None = typer.Option(None, "--sandbox-id", help="查询 LBG Sandbox ID。"),
 ) -> None:
     """Read the latest state of one local run or a remote LBG Job."""
 
-    if lbg_job_id and bohr_job_id:
-        raise EvaluationError("--lbg-job-id 和 --bohr-job-id 只能选择一个")
+    if sum(bool(value) for value in (lbg_job_id, bohr_job_id, sandbox_id)) > 1:
+        raise EvaluationError("--lbg-job-id、--bohr-job-id 和 --sandbox-id 只能选择一个")
+    if sandbox_id:
+        settings = LbgSettings.from_environment()
+        client = LbgClient(settings)
+        remote = client.sandbox_detail(sandbox_id)
+        emit({"run_id": run_id, "backend": "sandbox", "remote": _redact_remote(remote)}, output)
+        return
     if lbg_job_id or bohr_job_id:
         settings = LbgSettings.from_environment()
         client = LbgClient(settings)
